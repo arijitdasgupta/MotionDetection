@@ -88,8 +88,9 @@ while True: #Main loop
     if(counter == 0):
         corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
         flag = True
-    #cv.CvtColor(accumulator, render_image, cv.CV_GRAY2RGB)
     cv.Copy(img, render_image)
+    cv.CvtColor(accumulator, render_image, cv.CV_GRAY2RGB)
+    #cv.Copy(img, render_image)
     cv.Copy(gray_image, prev_image)
     #Drawing vectors and averaging the rotation...
     sum = 0
