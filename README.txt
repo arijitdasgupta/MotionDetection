@@ -7,3 +7,5 @@ I tried using Optical Flow calculation methods that comes with OpenCV, but I fou
 I plan to extend the whole program, for now it can detect stuff moving left or right with a webcam and prints the direction out.
 
 To run the program you would need OpenCV 2.2 installed with Python 2.7
+
+There is also a dead branch named difference_image_averaging, which incorporated my own algorithm for motion detection of the largest moving object on screen. The branch is dead. Current version is using Lucas Kanade Optical Flow Detection Method. You are also encourage to check out the dead branch.
