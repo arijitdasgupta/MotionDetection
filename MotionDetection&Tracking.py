@@ -3,6 +3,8 @@
 #Author: Arijit Dasgupta
 
 import cv
+import serial
+from time import sleep
 
 #Key codes for initialization faster processing
 key_quit_lower = ord('q')
@@ -20,11 +22,30 @@ window1 = 'main_window'
 cv.NamedWindow(window1,1)
 capture = cv.CaptureFromCAM(0)
 
+#Initializing camera and stuff
 try:
     img = cv.QueryFrame(capture)
+    if img == None:
+        print "Couldn't get the camera, exiting program"
+        exit()
 except:
     print "Error getting image camera, exiting program"
     exit()
+
+print "Initialized camera..."
+    
+#Initialzing serial port
+try:
+    serial_port = serial.Serial(14) #Opening COM15 as BlueLink, you should change as per your serial port
+    serial_port.write('I') #Initializing the system
+    sleep(0.1)
+    x = serial_port.read()
+    if x == 'I':
+        print "System initialized... commencing tracking program"
+    else:
+        print "Failed to initialize tracking state"
+except:
+    print "Error opening serial port"
 
 #Initializing images
 eigen_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_32F, 1) #Eigen image for Good Features to track
@@ -37,7 +58,7 @@ register1_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #I
 register2_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Image processing register 2
 sum_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Sum image register
 
-pyramid1 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1) #Pyramid buffers of Pyramidal Lucas Kanade
+pyramid1 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1) #Pyramid buffers of Pyramidal Lucas Kanade Method
 pyramid2 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1)
 
 #hardcoded optimizable params, might be implemented with a slider afterwards
@@ -89,8 +110,7 @@ while True: #Main loop
         corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
         flag = True
     cv.Copy(img, render_image)
-    cv.CvtColor(accumulator, render_image, cv.CV_GRAY2RGB)
-    #cv.Copy(img, render_image)
+    cv.Copy(img, render_image)
     cv.Copy(gray_image, prev_image)
     #Drawing vectors and averaging the rotation...
     sum = 0
@@ -116,12 +136,22 @@ while True: #Main loop
     #printing movement
     if avg > param1:
         print "Movement right"
+        serial_port.write('R')
+        sleep(0.1)
     if avg < -param1:
         print "Movement left"
+        serial_port.write('L')
+        sleep(0.1)
     #Runtime keystroke controls with flags
     key = cv.WaitKey(1)
     if(key == key_quit_lower or key == key_quit_upper):
         cv.DestroyWindow(window1)
+        serial_port.write('I');
+        sleep(0.1)
+        x = serial_port.read()
+        if x == 'i':
+            print "System set to stand-by mode cooloff"
+        serial_port.close()
         exit()
     elif(key == key_true_image_upper or key == key_true_image_lower):
         flag_true_image = not flag_true_image

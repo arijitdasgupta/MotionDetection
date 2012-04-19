@@ -5,6 +5,9 @@
  *  Author: Arijit Dasgupta
  */ 
 
+//Takes characters from serial port, I to initialize and de-initialize the motor and also to cool off the motor... R, L tells the system to move
+//left and right and as a confirmation sends a C after rotation.
+
 #define F_CPU 8000000L
 #define BAUD 9600 //Baud rate
 #define MYUBRR F_CPU/16/BAUD-1 //UBRR
