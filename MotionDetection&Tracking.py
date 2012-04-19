@@ -13,6 +13,8 @@ key_true_image_lower = ord('b')
 key_true_image_upper = ord('B')
 key_print_upper = ord('P')
 key_print_lower = ord('p')
+key_reset_upper = ord('R')
+key_reset_lower = ord('r')
 
 #Viewing flags
 flag_true_image = False
@@ -80,10 +82,16 @@ fading_factor = 40 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
-param1 = 0.1 #Rotation parameter
-detection_skip = 5
-rotation_multiplier = 5
+param1 = 1 #Rotation parameter
+detection_skip = 5 #Delay after a single movement
+rotation_multiplier = 2 #Rotation per detection
+filter_depth = 3 #Low pass moving average filter depth
+cooloff_timer_limit = 10 #Motor cooloff timer limit
 
+#configuring filter register
+filter = []
+for i in range(filter_depth):
+    filter.append(0)
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
@@ -97,6 +105,9 @@ counter = 0
 flag = False #GoodFeatureToTrack execution flag
 detection_skip_counter = 0
 sum_of_avg = 0
+cooloff_flag = False
+cooloff_timer = 0
+
 
 #Defining the rotation check function (for debugging purposes)
 def rotation_check(x):
@@ -164,12 +175,25 @@ while True: #Main loop
     #detection_skip_counter decrement
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
-        sum_of_avg = 0
-        avg = sum_of_avg/detection_skip
-    #printing movement
-    sum_of_avg = sum_of_avg + avg
+    elif detection_skip_counter == 0:
+    #low pass moving average filtering
+        filter.pop(0)
+        filter.append(avg)
+        filter_sum = 0
+        for i in filter:
+            filter_sum = filter_sum + i
+        avg = filter_sum/filter_depth
+    #printing movement and rotating the platform
     if avg > param1 and detection_skip_counter == 0:
         print "Movement right",
+        if cooloff_flag:
+            serial_port.write('I')
+            cooloff_timer = 0
+            x = serial_port.read()
+            if x == 'i':
+                serial_port.write('I')
+                x = serial_port.read()
+            cooloff_flag = False
         for i in range(rotation_multiplier):
             serial_port.write('R')
             x = serial_port.read()
@@ -177,11 +201,27 @@ while True: #Main loop
         detection_skip_counter = detection_skip
     elif avg < -param1 and detection_skip_counter == 0:
         print "Movement left",
+        if cooloff_flag:
+            serial_port.write('I')
+            cooloff_timer = 0
+            x = serial_port.read()
+            if x == 'i':
+                serial_port.write('I')
+                x = serial_port.read()
+            cooloff_flag = False
         for i in range(rotation_multiplier):
             serial_port.write('L')
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
+    elif avg < param1 and avg > -param1:
+        if cooloff_timer < cooloff_timer_limit:
+            cooloff_timer = cooloff_timer + 1
+        elif not cooloff_flag:
+            serial_port.write('I')
+            x = serial_port.read()
+            print 'Motor cooling off'
+            cooloff_flag = True
     #Runtime keystroke controls with flags
     key = cv.WaitKey(1)
     if(key == key_quit_lower or key == key_quit_upper):
@@ -190,10 +230,24 @@ while True: #Main loop
         sleep(0.1)
         x = serial_port.read()
         if x == 'i':
-            print "System set to stand-by mode cooloff"
+            print "System set to stand-by mode and motor cooloff"
         serial_port.close()
         exit()
     elif(key == key_true_image_upper or key == key_true_image_lower):
         flag_true_image = not flag_true_image
     elif(key == key_print_upper or key == key_print_lower):
         print len(new_corners), len(corners), len(status), len(track_error)
+    elif(key == key_reset_upper or key == key_reset_lower):
+        print 'Resetting camera angle'
+        x = 'A'
+        serial_port.write('I')
+        if serial_port.read() == 'i':
+            serial_port.write('I')
+            serial_port.read()
+        while x != 'F':
+            serial_port.write('R')
+            x = serial_port.read()
+        for i in range(100):
+            serial_port.write('L')
+            x = serial_port.read()
+        sleep(0.2)
