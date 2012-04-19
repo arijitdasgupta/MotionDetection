@@ -30,7 +30,7 @@ void init_uart();
 void UART_write(char x);
 uint8_t UART_read();
 
-int counter = 0, rot = 0;//Initializing the rotation parameters
+int counter = MAXROT/2, rot = 0;//Initializing the rotation parameters
 uint8_t init_flag = 0; //System initialization flag
 
 int main(void)
@@ -103,11 +103,21 @@ ISR(USART_RXC_vect){ //Interrupt routine for rotation and flag setting
 	}
 	else if((x == 'r' || x == 'R') && init_flag != 0){
 		rotate_right();
-		UART_write('C');
+		if(counter == 0){
+			UART_write('F');
+		}
+		else{
+			UART_write('C');	
+		}
 	}
 	else if((x == 'l' || x == 'L') && init_flag != 0){
 		rotate_left();
-		UART_write('C');
+		if(counter == MAXROT){
+			UART_write('F');
+		}
+		else{
+			UART_write('C');	
+		}
 	}
 	ledtoggle;
 	sei();

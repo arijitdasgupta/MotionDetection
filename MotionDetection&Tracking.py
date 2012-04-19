@@ -43,9 +43,18 @@ try:
     if x == 'I':
         print "System initialized... commencing tracking program"
     else:
-        print "Failed to initialize tracking state"
+        print "Failed to initialize motor system, trying again"
+        serial_port.write('I') #Initializing the system again
+        sleep(0.1)
+        x = serial_port.read()
+        if x == 'I':
+            print "System initialized... commencing tracking program"
+        else:
+            print "Failed to initialize motor system"
+            exit()
 except:
     print "Error opening serial port"
+    exit()
 
 #Initializing images
 eigen_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_32F, 1) #Eigen image for Good Features to track
@@ -71,7 +80,7 @@ fading_factor = 40 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
-param1 = 1.5 #Rotation parameter
+param1 = 2 #Rotation parameter
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
@@ -136,12 +145,24 @@ while True: #Main loop
     #printing movement
     if avg > param1:
         print "Movement right"
+    elif avg < -param1:
+        print "Movement left"
+    if avg > param1 and counter == 0:
         serial_port.write('R')
         sleep(0.1)
-    if avg < -param1:
-        print "Movement left"
+        x = serial_port.read()
+        if x == 'C':
+            print 'Rotated right'
+        elif x == 'F':
+            print 'Didnt rotate right'
+    if avg > -param1 and counter == 0:
         serial_port.write('L')
         sleep(0.1)
+        x = serial_port.read()
+        if x == 'C':
+            print 'Rotated left'
+        elif x == 'F':
+            print 'Didnt rotate left'
     #Runtime keystroke controls with flags
     key = cv.WaitKey(1)
     if(key == key_quit_lower or key == key_quit_upper):
