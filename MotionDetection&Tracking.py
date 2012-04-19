@@ -84,7 +84,7 @@ threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
 param1 = 1 #Rotation parameter
 detection_skip = 5 #Delay after a single movement
-rotation_multiplier = 2 #Rotation per detection
+rotation_multiplier = 3 #Rotation per detection
 filter_depth = 3 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
 
@@ -229,8 +229,11 @@ while True: #Main loop
         serial_port.write('I');
         sleep(0.1)
         x = serial_port.read()
-        if x == 'i':
-            print "System set to stand-by mode and motor cooloff"
+        if x == 'I':
+            serial_port.write('I')
+            x = serial_port.read()
+            if x == 'i':
+                print "System set to stand-by mode and motor cooloff"
         serial_port.close()
         exit()
     elif(key == key_true_image_upper or key == key_true_image_lower):
