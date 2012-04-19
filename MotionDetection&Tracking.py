@@ -80,7 +80,10 @@ fading_factor = 40 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
-param1 = 1 #Rotation parameter
+param1 = 0.1 #Rotation parameter
+detection_skip = 5
+rotation_multiplier = 5
+
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
@@ -92,6 +95,8 @@ counter = 0
 
 #misc initialization
 flag = False #GoodFeatureToTrack execution flag
+detection_skip_counter = 0
+sum_of_avg = 0
 
 #Defining the rotation check function (for debugging purposes)
 def rotation_check(x):
@@ -143,10 +148,6 @@ def motion_detector():
             except IndexError:
                 pass
 
-detection_skip_counter = 0
-detection_skip = 4
-rotation_multiplier = 1
-
 while True: #Main loop
     #Acquiring the image and grayscaling it
     img = cv.QueryFrame(capture)
@@ -163,17 +164,20 @@ while True: #Main loop
     #detection_skip_counter decrement
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
+        sum_of_avg = 0
+        avg = sum_of_avg/detection_skip
     #printing movement
+    sum_of_avg = sum_of_avg + avg
     if avg > param1 and detection_skip_counter == 0:
         print "Movement right",
-        for i in range(int(avg * rotation_multiplier) + 1):
+        for i in range(rotation_multiplier):
             serial_port.write('R')
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
     elif avg < -param1 and detection_skip_counter == 0:
         print "Movement left",
-        for i in range(int(avg * rotation_multiplier) + 1):
+        for i in range(rotation_multiplier):
             serial_port.write('L')
             x = serial_port.read()
         rotation_check(x)
