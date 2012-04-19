@@ -147,20 +147,20 @@ while True: #Main loop
         print "Movement right"
     elif avg < -param1:
         print "Movement left"
-    if avg > param1 and counter == 0:
+    if avg > param1:
         serial_port.write('R')
-        sleep(0.1)
         x = serial_port.read()
         if x == 'C':
             print 'Rotated right'
+            corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
         elif x == 'F':
             print 'Didnt rotate right'
-    if avg > -param1 and counter == 0:
+    if avg > -param1:
         serial_port.write('L')
-        sleep(0.1)
         x = serial_port.read()
         if x == 'C':
             print 'Rotated left'
+            corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
         elif x == 'F':
             print 'Didnt rotate left'
     #Runtime keystroke controls with flags
