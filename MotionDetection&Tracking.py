@@ -143,6 +143,10 @@ def motion_detector():
             except IndexError:
                 pass
 
+detection_skip_counter = 0
+detection_skip = 4
+rotation_multiplier = 1
+
 while True: #Main loop
     #Acquiring the image and grayscaling it
     img = cv.QueryFrame(capture)
@@ -156,11 +160,24 @@ while True: #Main loop
     image_processor()
     #Motion detection
     motion_detector()
+    #detection_skip_counter decrement
+    if detection_skip_counter > 0:
+        detection_skip_counter = detection_skip_counter - 1
     #printing movement
-    if avg > param1:
-        print "Movement right"
-    elif avg < -param1:
-        print "Movement left"
+    if avg > param1 and detection_skip_counter == 0:
+        print "Movement right",
+        for i in range(int(avg * rotation_multiplier) + 1):
+            serial_port.write('R')
+            x = serial_port.read()
+        rotation_check(x)
+        detection_skip_counter = detection_skip
+    elif avg < -param1 and detection_skip_counter == 0:
+        print "Movement left",
+        for i in range(int(avg * rotation_multiplier) + 1):
+            serial_port.write('L')
+            x = serial_port.read()
+        rotation_check(x)
+        detection_skip_counter = detection_skip
     #Runtime keystroke controls with flags
     key = cv.WaitKey(1)
     if(key == key_quit_lower or key == key_quit_upper):
