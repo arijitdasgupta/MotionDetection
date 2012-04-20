@@ -73,9 +73,9 @@ pyramid1 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1) #P
 pyramid2 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1)
 
 #hardcoded optimizable params, might be implemented with a slider afterwards
-quality = 0.1 #cvGoodFeaturesTrack Quality factor
-corner_count = 50 #Maximum corners to find with GoodFeaturesToTrack
-min_distance = 10 #minimum distance between two corners
+quality = 0.01 #cvGoodFeaturesTrack Quality factor
+corner_count = 100 #Maximum corners to find with GoodFeaturesToTrack
+min_distance = 7 #minimum distance between two corners
 threshold_limit1_upper = 40 #Threshold for difference image calculation
 threshold_limit1_lower = 20
 fading_factor = 40 #Fading factor for sum image
@@ -83,15 +83,10 @@ threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
 param1 = 1 #Rotation parameter
-detection_skip = 10 #Delay after a single movement
-rotation_multiplier = 3 #Rotation per detection
+detection_skip = 5 #Delay after a single movement
+rotation_multiplier = 4 #Rotation per detection
 filter_depth = 3 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
-
-#configuring filter register
-filter = []
-for i in range(filter_depth):
-    filter.append(0)
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
