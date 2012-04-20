@@ -83,7 +83,7 @@ threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 skip = 10 #Good Feature Skipper
 param1 = 1 #Rotation parameter
-detection_skip = 5 #Delay after a single movement
+detection_skip = 10 #Delay after a single movement
 rotation_multiplier = 3 #Rotation per detection
 filter_depth = 3 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
@@ -107,7 +107,7 @@ detection_skip_counter = 0
 sum_of_avg = 0
 cooloff_flag = False
 cooloff_timer = 0
-
+non_rotation_avg = 0
 
 #Defining the rotation check function (for debugging purposes)
 def rotation_check(x):
@@ -175,16 +175,12 @@ while True: #Main loop
     #detection_skip_counter decrement
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
+        non_rotation_avg = non_rotation_avg + avg
     elif detection_skip_counter == 0:
-    #low pass moving average filtering
-        filter.pop(0)
-        filter.append(avg)
-        filter_sum = 0
-        for i in filter:
-            filter_sum = filter_sum + i
-        avg = filter_sum/filter_depth
+    #low pass moving average filtering for movement
+        non_rotation_avg = non_rotation_avg/(detection_skip - 1)
     #printing movement and rotating the platform
-    if avg > param1 and detection_skip_counter == 0:
+    if avg > -non_rotation_avg and detection_skip_counter == 0:
         print "Movement right",
         if cooloff_flag:
             serial_port.write('I')
@@ -199,7 +195,8 @@ while True: #Main loop
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
-    elif avg < -param1 and detection_skip_counter == 0:
+        non_rotation_avg = 0
+    elif avg < non_rotation_avg and detection_skip_counter == 0:
         print "Movement left",
         if cooloff_flag:
             serial_port.write('I')
@@ -214,6 +211,7 @@ while True: #Main loop
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
+        non_rotation_avg = 0
     elif avg < param1 and avg > -param1:
         if cooloff_timer < cooloff_timer_limit:
             cooloff_timer = cooloff_timer + 1
