@@ -1,5 +1,5 @@
 #Universal motion detection algorithm implementation
-#General motion detection using GoodFeaturesToTrack and Pyramidal Lucas Kanade
+#Largest contour detection analysis
 #Author: Arijit Dasgupta
 
 import cv
@@ -59,50 +59,39 @@ except:
     exit()
 
 #Initializing images
-eigen_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_32F, 1) #Eigen image for Good Features to track
-temp_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_32F, 1) #For good feature to track
 gray_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #grayscale image
 prev_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #previous image store
+temp_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1)
 render_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 3) #image to render in the end
 accumulator = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #accumulator
-register1_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Image processing register 1
-register2_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Image processing register 2
 sum_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Sum image register
 
-pyramid1 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1) #Pyramid buffers of Pyramidal Lucas Kanade Method
-pyramid2 = cv.CreateImage([img.width + 8, img.height/3], cv.IPL_DEPTH_32F, 1)
-
 #hardcoded optimizable params, might be implemented with a slider afterwards
-quality = 0.01 #cvGoodFeaturesTrack Quality factor
-corner_count = 100 #Maximum corners to find with GoodFeaturesToTrack
-min_distance = 7 #minimum distance between two corners
 threshold_limit1_upper = 40 #Threshold for difference image calculation
 threshold_limit1_lower = 20
-fading_factor = 40 #Fading factor for sum image
+fading_factor = 150 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
-skip = 10 #Good Feature Skipper
-param1 = 1 #Rotation parameter
 detection_skip = 5 #Delay after a single movement
 rotation_multiplier = 4 #Rotation per detection
-filter_depth = 3 #Low pass moving average filter depth
+filter_depth = 10 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
+max_area = 1000 #min area for a difference image contour
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
 cv.Copy(gray_image, prev_image)
-corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
 
-#Initializing GoodFeatureToTrack execution skip counter
-counter = 0
+#Initializing store for contour detection
+store = cv.CreateMemStorage()
 
 #misc initialization
 flag = False #GoodFeatureToTrack execution flag
 detection_skip_counter = 0
-sum_of_avg = 0
 cooloff_flag = False
 cooloff_timer = 0
-non_rotation_avg = 0
+avg = 0
+prev_pos = 0
 
 #Defining the rotation check function (for debugging purposes)
 def rotation_check(x):
@@ -112,47 +101,36 @@ def rotation_check(x):
         print "Didnt rotate"
         
 def image_processor():
-    cv.Copy(gray_image, register1_image)
-    cv.Smooth(register1_image, register1_image, cv.CV_GAUSSIAN, 3, 3)
-    cv.AbsDiff(register1_image, register2_image, accumulator)
-    cv.InRangeS(accumulator, (threshold_limit1_lower), (threshold_limit1_upper), accumulator)
+    cv.Smooth(gray_image, gray_image, cv.CV_GAUSSIAN, 3, 3)
+    cv.AbsDiff(prev_image, gray_image, accumulator)
+    cv.InRangeS(accumulator, threshold_limit1_lower, threshold_limit1_upper, accumulator)
     cv.Dilate(accumulator, accumulator, None, 2)
     cv.Add(accumulator, sum_image, sum_image, accumulator)
-    cv.SubS(sum_image, (fading_factor), sum_image)
-    cv.InRangeS(sum_image, (threshold_limit2_lower), (threshold_limit2_upper), accumulator)
-    cv.Copy(register1_image, register2_image)
+    cv.SubS(sum_image, fading_factor, sum_image)
+    cv.InRangeS(sum_image, threshold_limit2_lower, threshold_limit2_upper, accumulator)
+    cv.Copy(gray_image, prev_image)
+    cv.Copy(accumulator, temp_image)
 
 def motion_detector():
-    global corners, corner_count, quality, min_distance, flag, counter, avg
-    new_corners, status, track_error = cv.CalcOpticalFlowPyrLK(prev_image, gray_image, pyramid1, pyramid2, corners, (10,10), 2, (cv.CV_TERMCRIT_ITER, 10, 0), 0)
-    counter = (counter + 1) % skip
-    if(counter == 0):
-        corners = cv.GoodFeaturesToTrack(gray_image, eigen_image, temp_image, cornerCount = corner_count, qualityLevel = quality, minDistance = min_distance) #Good features to track
-        flag = True
-    cv.Copy(img, render_image)
-    cv.Copy(img, render_image)
-    cv.Copy(gray_image, prev_image)
-    #Drawing vectors and averaging the rotation...
-    sum = 0
-    summing_counter = 0
-    if flag:
-        flag = not flag
+    global max_area, avg, prev_pos, largest_contour
+    contour = cv.FindContours(temp_image, store, mode = cv.CV_RETR_EXTERNAL, method = cv.CV_CHAIN_APPROX_NONE)
+    if len(contour) != 0:
+        temp_contour = contour
+        area = 0
+        max_area_test = max_area
+        while temp_contour != None:
+            area = cv.ContourArea(temp_contour)
+            if area > max_area_test:
+                largest_contour = temp_contour
+                max_area_test = area
+            temp_contour = temp_contour.h_next()
+        rect = cv.BoundingRect(largest_contour)
+        cv.DrawContours(img, largest_contour, (0,255,0), (0,0,255), 1, 3)
+        cv.Rectangle(img, (rect[0], rect[1]), (rect[0] + rect[2], rect[1] + rect[3]), (255,0,0))
+        avg = rect[0] + rect[2]/2
     else:
-        for i in range(len(new_corners)):
-            try: #Have to fix the exception, for now, it's running by ignoring the index error...
-                x1, y1 = corners[i]
-                x1, y1 = int(x1), int(y1)
-                x2, y2 = new_corners[i]
-                x2, y2 = int(x2), int(y2)
-                avg = 0
-                if (cv.Get2D(accumulator, y1, x1)[0] >= 240):
-                    cv.Line(render_image, (x1, y1), (x2, y2), (0,255,255))
-                    cv.Circle(render_image, (x2, y2), 1, (0,255,0))
-                    sum = sum + (x2 - x1)
-                    summing_counter = summing_counter + 1
-                    avg = sum/summing_counter
-            except IndexError:
-                pass
+        avg = img.width/2
+    cv.Copy(img, render_image)
 
 while True: #Main loop
     #Acquiring the image and grayscaling it
@@ -160,9 +138,9 @@ while True: #Main loop
     cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
     #Showing image
     if flag_true_image:
-        cv.ShowImage(window1, accumulator)
-    else:
         cv.ShowImage(window1, render_image)
+    else:
+        cv.ShowImage(window1, accumulator)
     #Image processing
     image_processor()
     #Motion detection
@@ -170,12 +148,8 @@ while True: #Main loop
     #detection_skip_counter decrement
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
-        non_rotation_avg = non_rotation_avg + avg
-    elif detection_skip_counter == 0:
-    #low pass moving average filtering for movement
-        non_rotation_avg = non_rotation_avg/(detection_skip - 1)
     #printing movement and rotating the platform
-    if avg > -non_rotation_avg and detection_skip_counter == 0:
+    if avg > 2*(img.width/3) and detection_skip_counter == 0:
         print "Movement right",
         if cooloff_flag:
             serial_port.write('I')
@@ -190,8 +164,7 @@ while True: #Main loop
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
-        non_rotation_avg = 0
-    elif avg < non_rotation_avg and detection_skip_counter == 0:
+    elif avg < img.width/3 and detection_skip_counter == 0:
         print "Movement left",
         if cooloff_flag:
             serial_port.write('I')
@@ -206,14 +179,13 @@ while True: #Main loop
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
-        non_rotation_avg = 0
-    elif avg < param1 and avg > -param1:
+    else:
         if cooloff_timer < cooloff_timer_limit:
             cooloff_timer = cooloff_timer + 1
         elif not cooloff_flag:
             serial_port.write('I')
             x = serial_port.read()
-            print 'Motor cooling off'
+            print 'Motor cooling on'
             cooloff_flag = True
     #Runtime keystroke controls with flags
     key = cv.WaitKey(1)
@@ -226,13 +198,13 @@ while True: #Main loop
             serial_port.write('I')
             x = serial_port.read()
             if x == 'i':
-                print "System set to stand-by mode and motor cooloff"
+                print "System set to stand-by mode and motor cooling on"
         serial_port.close()
         exit()
     elif(key == key_true_image_upper or key == key_true_image_lower):
         flag_true_image = not flag_true_image
     elif(key == key_print_upper or key == key_print_lower):
-        print len(new_corners), len(corners), len(status), len(track_error)
+        print largest_contour[:]
     elif(key == key_reset_upper or key == key_reset_lower):
         print 'Resetting camera angle'
         x = 'A'
