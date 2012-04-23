@@ -61,7 +61,7 @@ except:
 #Initializing images
 gray_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #grayscale image
 prev_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #previous image store
-temp_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1)
+temp_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #temporary image
 render_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 3) #image to render in the end
 accumulator = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #accumulator
 sum_image = cv.CreateImage([img.width, img.height], cv.IPL_DEPTH_8U, 1) #Sum image register
@@ -72,14 +72,17 @@ threshold_limit1_lower = 20
 fading_factor = 150 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
-detection_skip = 5 #Delay after a single movement
-rotation_multiplier = 4 #Rotation per detection
+detection_skip = 7 #Delay after a single movement
+rotation_multiplier = 10 #Rotation per detection
 filter_depth = 10 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
 max_area = 1000 #min area for a difference image contour
+non_rotation_band_h = 2 * img.width/3 - 50 #Non_rotation band high limit
+non_rotation_band_l = img.width/3 + 50 #Non_rotation band lower limit
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
+cv.Smooth(gray_image, gray_image, cv.CV_GAUSSIAN, 3, 3)
 cv.Copy(gray_image, prev_image)
 
 #Initializing store for contour detection
@@ -93,32 +96,38 @@ cooloff_timer = 0
 avg = 0
 prev_pos = 0
 
-#Defining the rotation check function (for debugging purposes)
+#Defining the rotation check function and cooloff if not rotating
 def rotation_check(x):
     if x == 'C':
         print "Did rotate"
     elif x == 'F':
         print "Didnt rotate"
+        serial_port.write('I')
+        x = serial_port.read()
+        if x == 'i':
+            serial_port.write('I')
+            x = serial_port.read() 
+        cooloff_flag = True #Motor cool off for non-rotating parts
         
 def image_processor():
-    cv.Smooth(gray_image, gray_image, cv.CV_GAUSSIAN, 3, 3)
-    cv.AbsDiff(prev_image, gray_image, accumulator)
-    cv.InRangeS(accumulator, threshold_limit1_lower, threshold_limit1_upper, accumulator)
-    cv.Dilate(accumulator, accumulator, None, 2)
-    cv.Add(accumulator, sum_image, sum_image, accumulator)
-    cv.SubS(sum_image, fading_factor, sum_image)
-    cv.InRangeS(sum_image, threshold_limit2_lower, threshold_limit2_upper, accumulator)
+    cv.Smooth(gray_image, gray_image, cv.CV_GAUSSIAN, 3, 3) #Blurring to remove some noise
+    cv.AbsDiff(prev_image, gray_image, accumulator) #Getting the difference image
+    cv.InRangeS(accumulator, threshold_limit1_lower, threshold_limit1_upper, accumulator) #Thresholding the difference image
+    cv.Dilate(accumulator, accumulator, None, 2) #Dilating the thresholded difference image
+    cv.Add(accumulator, sum_image, sum_image, accumulator) #Adding the image to a register to use fading
+    cv.SubS(sum_image, fading_factor, sum_image) #Fading
+    cv.InRangeS(sum_image, threshold_limit2_lower, threshold_limit2_upper, accumulator) #Thresholding the fading image
     cv.Copy(gray_image, prev_image)
     cv.Copy(accumulator, temp_image)
 
 def motion_detector():
     global max_area, avg, prev_pos, largest_contour
-    contour = cv.FindContours(temp_image, store, mode = cv.CV_RETR_EXTERNAL, method = cv.CV_CHAIN_APPROX_NONE)
+    contour = cv.FindContours(temp_image, store, mode = cv.CV_RETR_EXTERNAL, method = cv.CV_CHAIN_APPROX_NONE) #Findling contours
     if len(contour) != 0:
         temp_contour = contour
         area = 0
         max_area_test = max_area
-        while temp_contour != None:
+        while temp_contour != None: #Routine to find the largest contour
             area = cv.ContourArea(temp_contour)
             if area > max_area_test:
                 largest_contour = temp_contour
@@ -138,9 +147,9 @@ while True: #Main loop
     cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
     #Showing image
     if flag_true_image:
-        cv.ShowImage(window1, render_image)
-    else:
         cv.ShowImage(window1, accumulator)
+    else:
+        cv.ShowImage(window1, render_image)
     #Image processing
     image_processor()
     #Motion detection
@@ -149,7 +158,7 @@ while True: #Main loop
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
     #printing movement and rotating the platform
-    if avg > 2*(img.width/3) and detection_skip_counter == 0:
+    if avg > non_rotation_band_h and detection_skip_counter == 0:
         print "Movement right",
         if cooloff_flag:
             serial_port.write('I')
@@ -159,12 +168,12 @@ while True: #Main loop
                 serial_port.write('I')
                 x = serial_port.read()
             cooloff_flag = False
-        for i in range(rotation_multiplier):
+        for i in range(abs(avg - non_rotation_band_h)/rotation_multiplier):
             serial_port.write('R')
             x = serial_port.read()
         rotation_check(x)
         detection_skip_counter = detection_skip
-    elif avg < img.width/3 and detection_skip_counter == 0:
+    elif avg < non_rotation_band_l and detection_skip_counter == 0:
         print "Movement left",
         if cooloff_flag:
             serial_port.write('I')
@@ -174,7 +183,7 @@ while True: #Main loop
                 serial_port.write('I')
                 x = serial_port.read()
             cooloff_flag = False
-        for i in range(rotation_multiplier):
+        for i in range(abs(avg - non_rotation_band_l)/rotation_multiplier):
             serial_port.write('L')
             x = serial_port.read()
         rotation_check(x)
@@ -197,8 +206,8 @@ while True: #Main loop
         if x == 'I':
             serial_port.write('I')
             x = serial_port.read()
-            if x == 'i':
-                print "System set to stand-by mode and motor cooling on"
+        if x == 'i':
+            print "System set to stand-by mode and motor cooling on"
         serial_port.close()
         exit()
     elif(key == key_true_image_upper or key == key_true_image_lower):
