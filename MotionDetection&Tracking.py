@@ -1,5 +1,5 @@
 #Universal motion detection algorithm implementation
-#Largest contour detection analysis
+#Largest difference image contour detection analysis
 #Author: Arijit Dasgupta
 
 import cv
@@ -17,7 +17,7 @@ key_reset_upper = ord('R')
 key_reset_lower = ord('r')
 
 #Viewing flags
-flag_true_image = False
+flag_true_image = True #Set for true image as default runtime
 
 #Initialzing window for rendering
 window1 = 'main_window'
@@ -72,7 +72,7 @@ threshold_limit1_lower = 20
 fading_factor = 150 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
-detection_skip = 5 #Delay after a single movement
+detection_skip = 2 #Delay after a single movement
 rotation_factor = 10 #Rotation per detection
 filter_depth = 10 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
@@ -90,13 +90,12 @@ store = cv.CreateMemStorage()
 
 #misc initialization
 flag = False #GoodFeatureToTrack execution flag
-detection_skip_counter = 0
-cooloff_flag = False
-rotation_flag = False
-cooloff_timer = 0
-avg = 0
-prev_pos = 0
-rotation_multiplier = 0
+detection_skip_counter = 0 #Detection skipping counter
+cooloff_flag = False #Flag for motor-cooloff
+rotation_flag = False #Flag for rotation occuring
+cooloff_timer = 0 #Motocooldown timer
+avg = 0 #Avg position of the difference contour
+rotation_multiplier = 0 #x times rotation for a certain detection
 
 #Defining the rotation check function and cooloff if not rotating
 def rotation_check(x):
@@ -125,6 +124,7 @@ def image_processor():
 def motion_detector():
     global max_area, avg, prev_pos, largest_contour
     contour = cv.FindContours(temp_image, store, mode = cv.CV_RETR_EXTERNAL, method = cv.CV_CHAIN_APPROX_NONE) #Findling contours
+    cv.Copy(img, render_image) #Copying for painting on the image
     if len(contour) != 0:
         temp_contour = contour
         area = 0
@@ -136,12 +136,12 @@ def motion_detector():
                 max_area_test = area
             temp_contour = temp_contour.h_next()
         rect = cv.BoundingRect(largest_contour)
-        cv.DrawContours(img, largest_contour, (0,255,0), (0,0,255), 1, 3)
-        cv.Rectangle(img, (rect[0], rect[1]), (rect[0] + rect[2], rect[1] + rect[3]), (255,0,0))
+        cv.DrawContours(render_image, largest_contour, (0,255,0), (0,0,255), 1, 3)
+        cv.Rectangle(render_image, (rect[0], rect[1]), (rect[0] + rect[2], rect[1] + rect[3]), (255,0,0))
         avg = rect[0] + rect[2]/2
     else:
         avg = img.width/2
-    cv.Copy(img, render_image)
+    
 
 while True: #Main loop
     #Acquiring the image and grayscaling it
@@ -149,7 +149,7 @@ while True: #Main loop
     cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
     #Showing image
     if flag_true_image:
-        cv.ShowImage(window1, accumulator)
+        cv.ShowImage(window1, img)
     else:
         cv.ShowImage(window1, render_image)
     #Image processing
