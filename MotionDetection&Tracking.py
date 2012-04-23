@@ -72,8 +72,8 @@ threshold_limit1_lower = 20
 fading_factor = 150 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
-detection_skip = 7 #Delay after a single movement
-rotation_multiplier = 10 #Rotation per detection
+detection_skip = 5 #Delay after a single movement
+rotation_factor = 10 #Rotation per detection
 filter_depth = 10 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
 max_area = 1000 #min area for a difference image contour
@@ -92,9 +92,11 @@ store = cv.CreateMemStorage()
 flag = False #GoodFeatureToTrack execution flag
 detection_skip_counter = 0
 cooloff_flag = False
+rotation_flag = False
 cooloff_timer = 0
 avg = 0
 prev_pos = 0
+rotation_multiplier = 0
 
 #Defining the rotation check function and cooloff if not rotating
 def rotation_check(x):
@@ -168,11 +170,17 @@ while True: #Main loop
                 serial_port.write('I')
                 x = serial_port.read()
             cooloff_flag = False
-        for i in range(abs(avg - non_rotation_band_h)/rotation_multiplier):
+        if not rotation_flag:
+            rotation_flag = True
+            rotation_multiplier = abs(avg - non_rotation_band_h)/rotation_factor
+        if rotation_multiplier >= 0 and rotation_flag:
             serial_port.write('R')
             x = serial_port.read()
-        rotation_check(x)
-        detection_skip_counter = detection_skip
+            rotation_check(x)
+            rotation_multipler = rotation_multiplier - 1
+        else:
+            rotation_flag = False
+            detection_skip_counter = detection_skip
     elif avg < non_rotation_band_l and detection_skip_counter == 0:
         print "Movement left",
         if cooloff_flag:
@@ -183,11 +191,17 @@ while True: #Main loop
                 serial_port.write('I')
                 x = serial_port.read()
             cooloff_flag = False
-        for i in range(abs(avg - non_rotation_band_l)/rotation_multiplier):
+        if not rotation_flag:
+            rotation_flag = True
+            rotation_multiplier = abs(avg - non_rotation_band_l)/rotation_factor
+        if rotation_multiplier >= 0 and rotation_flag:
             serial_port.write('L')
             x = serial_port.read()
-        rotation_check(x)
-        detection_skip_counter = detection_skip
+            rotation_check(x)
+            rotation_multipler = rotation_multiplier - 1
+        else:
+            rotation_flag = False
+            detection_skip_counter = detection_skip
     else:
         if cooloff_timer < cooloff_timer_limit:
             cooloff_timer = cooloff_timer + 1
