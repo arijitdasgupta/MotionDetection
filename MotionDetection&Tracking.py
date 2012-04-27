@@ -72,11 +72,11 @@ threshold_limit1_lower = 20
 fading_factor = 150 #Fading factor for sum image
 threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
-detection_skip = 2 #Delay after a single movement
-rotation_factor = 10 #Rotation per detection
+detection_skip = 13 #Delay after a single movement
+rotation_factor = 5 #Rotation per detection
 filter_depth = 10 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
-max_area = 1000 #min area for a difference image contour
+max_area = 500 #min area for a difference image contour
 non_rotation_band_h = 2 * img.width/3 - 50 #Non_rotation band high limit
 non_rotation_band_l = img.width/3 + 50 #Non_rotation band lower limit
 
@@ -96,6 +96,11 @@ rotation_flag = False #Flag for rotation occuring
 cooloff_timer = 0 #Motocooldown timer
 avg = 0 #Avg position of the difference contour
 rotation_multiplier = 0 #x times rotation for a certain detection
+
+#Initializing filter
+filter = []
+for i in range(filter_depth):
+    filter.append(img.width/2)
 
 #Defining the rotation check function and cooloff if not rotating
 def rotation_check(x):
@@ -149,7 +154,7 @@ while True: #Main loop
     cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
     #Showing image
     if flag_true_image:
-        cv.ShowImage(window1, img)
+        cv.ShowImage(window1, accumulator)
     else:
         cv.ShowImage(window1, render_image)
     #Image processing
@@ -159,7 +164,14 @@ while True: #Main loop
     #detection_skip_counter decrement
     if detection_skip_counter > 0:
         detection_skip_counter = detection_skip_counter - 1
-    #printing movement and rotating the platform
+    #filtering
+    filter.append(avg)
+    filter.pop(0)
+    avg = 0
+    for i in filter:
+        avg = avg + i
+    avg = avg/filter_depth
+    #printing movement and rotating the platform    
     if avg > non_rotation_band_h and detection_skip_counter == 0:
         print "Movement right",
         if cooloff_flag:
@@ -173,11 +185,11 @@ while True: #Main loop
         if not rotation_flag:
             rotation_flag = True
             rotation_multiplier = abs(avg - non_rotation_band_h)/rotation_factor
-        if rotation_multiplier >= 0 and rotation_flag:
+        if rotation_multiplier > 0 and rotation_flag:
             serial_port.write('R')
             x = serial_port.read()
             rotation_check(x)
-            rotation_multipler = rotation_multiplier - 1
+            rotation_multiplier = rotation_multiplier - 1
         else:
             rotation_flag = False
             detection_skip_counter = detection_skip
@@ -194,11 +206,11 @@ while True: #Main loop
         if not rotation_flag:
             rotation_flag = True
             rotation_multiplier = abs(avg - non_rotation_band_l)/rotation_factor
-        if rotation_multiplier >= 0 and rotation_flag:
+        if rotation_multiplier > 0 and rotation_flag:
             serial_port.write('L')
             x = serial_port.read()
             rotation_check(x)
-            rotation_multipler = rotation_multiplier - 1
+            rotation_multiplier = rotation_multiplier - 1
         else:
             rotation_flag = False
             detection_skip_counter = detection_skip
