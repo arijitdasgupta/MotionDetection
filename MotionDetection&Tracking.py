@@ -74,11 +74,11 @@ threshold_limit2_lower = 100 #Threshold for sum image calculation
 threshold_limit2_upper = 255
 detection_skip = 13 #Delay after a single movement
 rotation_factor = 5 #Rotation per detection
-filter_depth = 10 #Low pass moving average filter depth
+filter_depth = 8 #Low pass moving average filter depth
 cooloff_timer_limit = 10 #Motor cooloff timer limit
 max_area = 500 #min area for a difference image contour
-non_rotation_band_h = 2 * img.width/3 - 50 #Non_rotation band high limit
-non_rotation_band_l = img.width/3 + 50 #Non_rotation band lower limit
+non_rotation_band_h = 2 * img.width/3 - 70 #Non_rotation band high limit
+non_rotation_band_l = img.width/3 + 70 #Non_rotation band lower limit
 
 #Primary initialization
 cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
@@ -97,7 +97,7 @@ cooloff_timer = 0 #Motocooldown timer
 avg = 0 #Avg position of the difference contour
 rotation_multiplier = 0 #x times rotation for a certain detection
 
-#Initializing filter
+#Initializing filter (Low pass moving average)
 filter = []
 for i in range(filter_depth):
     filter.append(img.width/2)
