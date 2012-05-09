@@ -154,7 +154,7 @@ while True: #Main loop
     cv.CvtColor(img, gray_image, cv.CV_RGB2GRAY)
     #Showing image
     if flag_true_image:
-        cv.ShowImage(window1, accumulator)
+        cv.ShowImage(window1, img)
     else:
         cv.ShowImage(window1, render_image)
     #Image processing
